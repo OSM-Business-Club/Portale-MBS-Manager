@@ -8781,6 +8781,7 @@ function _downloadFallback(blob, filename) {
   .fatt-doc tbody tr:nth-child(even) td { background:#f7f7fa; }
   .fatt-doc tbody tr { page-break-inside:avoid; break-inside:avoid; }
   .fatt-doc td.nome { font-weight:600; }
+  .fatt-doc .fatt-tipo { display:block; font-size:9px; font-weight:600; color:#8a8f9c; text-transform:uppercase; letter-spacing:0.06em; margin-top:1px; }
   .fatt-doc td.num { font-weight:700; white-space:nowrap; }
   .fatt-doc tfoot td { padding:11px 10px; font-weight:800; font-size:13px; border-top:2px solid #1f2430; }
   .fatt-doc tfoot td.num { color:var(--bf-acc); font-size:15px; }
@@ -8831,7 +8832,21 @@ function _downloadFallback(blob, filename) {
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function eur(n) { return '€ ' + (Number(n) || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function isPresente(i) { return !!(i.presenza || i.presenzaG1 || i.presenzaG2); }
+  // Tipo non pagante (Ospite / Open-Day): in Fatturazione la quota è sempre 0.
+  // MBS Emilia ha un tipo per giornata: è non pagante solo se lo è in tutte le giornate in cui era presente.
+  var TIPI_GRATUITI = ['ospite', 'open-day'];
+  function tipoGratuito(i) {
+    var tipi = [];
+    if (PROGETTO === 'MBS Emilia') {
+      if (i.presenzaG1) tipi.push(i.tipoG1 || i.tipo);
+      if (i.presenzaG2) tipi.push(i.tipoG2 || i.tipo);
+    }
+    if (!tipi.length) tipi.push(i.tipo);
+    var gratuiti = tipi.filter(function(t) { return TIPI_GRATUITI.indexOf(String(t || '').toLowerCase()) >= 0; });
+    return gratuiti.length === tipi.length ? (gratuiti[0] || '') : '';
+  }
   function quotaDi(i) {
+    if (tipoGratuito(i)) return 0;
     if (typeof getQuotaEffettiva === 'function') return Number(getQuotaEffettiva(i)) || 0;
     return parseFloat(i.quota) || 0;
   }
@@ -8944,6 +8959,7 @@ function _downloadFallback(blob, filename) {
         azienda: i.azienda || '',
         consulente: i.consulente || '',
         partner: i.partner || '',
+        gratuito: tipoGratuito(i),
         quota: quotaDi(i)
       };
     });
@@ -9000,7 +9016,7 @@ function _downloadFallback(blob, filename) {
           '<td>' + esc(r.azienda || '—') + '</td>' +
           '<td>' + esc(r.consulente || '—') + '</td>' +
           '<td>' + esc(r.partner || '—') + '</td>' +
-          '<td class="num">' + eur(r.quota) + '</td></tr>';
+          '<td class="num">' + eur(r.quota) + (r.gratuito ? '<span class="fatt-tipo">' + esc(r.gratuito) + '</span>' : '') + '</td></tr>';
       });
       html += '</tbody><tfoot><tr>' +
           '<td colspan="5">Totale &middot; ' + righe.length + ' present' + (righe.length === 1 ? 'e' : 'i') + '</td>' +
@@ -9068,13 +9084,13 @@ function _downloadFallback(blob, filename) {
   window.fattScaricaExcel = function() {
     var righe = righeFatturazione(edizioneScelta(), document.getElementById('fatt-ordine').value);
     var q = function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
-    var linee = [['Cliente', 'Azienda', 'Consulente', 'Partner di riferimento', 'Quota di partecipazione'].map(q).join(';')];
+    var linee = [['Cliente', 'Azienda', 'Consulente', 'Partner di riferimento', 'Quota di partecipazione', 'Note'].map(q).join(';')];
     var tot = 0;
     righe.forEach(function(r) {
       tot += r.quota;
-      linee.push([r.nome, r.azienda, r.consulente, r.partner, r.quota.toFixed(2).replace('.', ',')].map(q).join(';'));
+      linee.push([r.nome, r.azienda, r.consulente, r.partner, r.quota.toFixed(2).replace('.', ','), r.gratuito].map(q).join(';'));
     });
-    linee.push(['Totale', '', '', '', tot.toFixed(2).replace('.', ',')].map(q).join(';'));
+    linee.push(['Totale', '', '', '', tot.toFixed(2).replace('.', ','), ''].map(q).join(';'));
     var blob = new Blob(['﻿' + linee.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
