@@ -8737,6 +8737,431 @@ function _downloadFallback(blob, filename) {
   toast('File scaricato — spostalo in FONTI/PORTALI/Sito MBS Manager/');
 }
 </script>
+<!-- ===== MODULO COMUNE AB / MBS MANAGER / MBS EMILIA (2026-10-21): FATTURAZIONE + CONSULENTE SU PIÙ PARTNER ===== -->
+<style>
+  #nav-fatturazione.fatt-nascosto { display: none !important; }
+  /* Con il pulsante Fatturazione in più, sugli schermi medi il menu si compatta per restare tutto visibile */
+  .navbar-brand { flex-shrink: 0; }
+  @media (min-width: 601px) and (max-width: 1500px) {
+    .navbar { gap: 2px; padding: 0 16px; }
+    .navbar .nav-btn { padding: 6px 8px; font-size: 0.76rem; letter-spacing: 0.01em; }
+  }
+  .fatt-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:18px; }
+  .fatt-toolbar label { font-size:0.75rem; font-weight:600; color:var(--testo-muted); text-transform:uppercase; letter-spacing:0.07em; }
+  .fatt-toolbar select { background:var(--input-bg); border:1px solid var(--input-border); color:var(--testo-chiaro); padding:8px 12px; border-radius:8px; font-size:0.85rem; outline:none; }
+  .fatt-toolbar select option { color:#1a1a1a; }
+  .fatt-toolbar .fatt-azioni { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  .fatt-toolbar .fatt-azioni .btn { padding:8px 14px; font-size:0.82rem; }
+
+  .fatt-doc { background:#fff; color:#1f2430; border-radius:10px; padding:34px 38px 30px; max-width:1000px; margin:0 auto; box-shadow:0 8px 30px rgba(0,0,0,0.25); font-family:'Inter','Segoe UI',Arial,sans-serif; }
+  .fatt-doc-head { display:flex; align-items:center; justify-content:space-between; gap:20px; border-bottom:3px solid var(--bf-acc); padding-bottom:16px; margin-bottom:18px; }
+  .fatt-doc-head img { max-height:58px; max-width:180px; object-fit:contain; }
+  .fatt-doc-kicker { font-size:10px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--bf-acc); }
+  .fatt-doc-title { font-size:22px; font-weight:800; margin-top:3px; color:#1f2430; }
+  .fatt-doc-meta { text-align:right; font-size:11px; color:#6b7080; line-height:1.6; }
+  .fatt-doc-meta b { color:#1f2430; font-size:15px; }
+  .fatt-doc table { width:100%; min-width:0; border-collapse:collapse; font-size:12px; }
+  .fatt-doc thead tr { background:none; border:none; }
+  .fatt-doc tbody tr td, .fatt-doc tbody tr:hover td { background:#fff; }
+  .fatt-doc tbody tr:nth-child(even) td, .fatt-doc tbody tr:nth-child(even):hover td { background:#f7f7fa; }
+  .fatt-doc th { white-space:normal; }
+  .fatt-doc tfoot { display:table-row-group; } /* il totale solo alla fine, non ripetuto su ogni pagina */
+  /* Versione per stampa / PDF: più compatta, così ogni cliente sta su una riga */
+  .fatt-doc.fatt-stampa table { font-size:10px; }
+  .fatt-doc.fatt-stampa thead th { font-size:8.5px; padding:7px 6px; }
+  .fatt-doc.fatt-stampa tbody td { padding:5px 6px; }
+  .fatt-doc.fatt-stampa thead th.num { width:22mm; }
+  .fatt-doc.fatt-stampa thead th.idx { width:8mm; }
+  .fatt-doc.fatt-stampa .fatt-doc-head img { max-height:44px; }
+  .fatt-doc.fatt-stampa .fatt-doc-title { font-size:18px; }
+  .fatt-doc thead th { background:var(--bf-acc); color:#fff; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:9px 10px; text-align:left; }
+  .fatt-doc thead th.num, .fatt-doc td.num { text-align:right; }
+  .fatt-doc thead th.idx, .fatt-doc td.idx { text-align:center; width:34px; }
+  .fatt-doc tbody td { padding:8px 10px; border-bottom:1px solid #e7e8ee; color:#1f2430; }
+  .fatt-doc tbody tr:nth-child(even) td { background:#f7f7fa; }
+  .fatt-doc tbody tr { page-break-inside:avoid; break-inside:avoid; }
+  .fatt-doc td.nome { font-weight:600; }
+  .fatt-doc td.num { font-weight:700; white-space:nowrap; }
+  .fatt-doc tfoot td { padding:11px 10px; font-weight:800; font-size:13px; border-top:2px solid #1f2430; }
+  .fatt-doc tfoot td.num { color:var(--bf-acc); font-size:15px; }
+  .fatt-doc-vuoto { text-align:center; padding:40px 10px; color:#8a8f9c; font-style:italic; }
+  .fatt-doc-foot { margin-top:18px; font-size:9.5px; color:#9a9fab; display:flex; justify-content:space-between; }
+
+  /* Selettore consulente (Gestione Clienti) */
+  .fatt-modal-ov { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:9999; padding:16px; }
+  .fatt-modal-ov.show { display:flex; }
+  .fatt-modal { background:var(--card-bg, #14213d); border:1px solid var(--card-border); border-radius:12px; padding:22px 22px 18px; width:100%; max-width:440px; color:var(--testo-chiaro); box-shadow:0 12px 40px rgba(0,0,0,0.5); }
+  .fatt-modal h3 { font-size:1rem; margin:0 0 4px; }
+  .fatt-modal .sub { font-size:0.78rem; color:var(--testo-muted); margin-bottom:16px; }
+  .fatt-modal label { display:block; font-size:0.72rem; font-weight:600; color:var(--testo-muted); text-transform:uppercase; letter-spacing:0.07em; margin:12px 0 5px; }
+  .fatt-modal select, .fatt-modal input { width:100%; background:var(--input-bg); border:1px solid var(--input-border); color:var(--testo-chiaro); padding:9px 12px; border-radius:8px; font-size:0.88rem; outline:none; box-sizing:border-box; }
+  .fatt-modal select option { color:#1a1a1a; }
+  .fatt-modal .oppure { text-align:center; font-size:0.72rem; color:var(--testo-muted); margin:12px 0 0; }
+  .fatt-modal .azioni { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+</style>
+
+<div class="fatt-modal-ov" id="fatt-cons-overlay" onclick="if(event.target===this)fattChiudiSceltaConsulente()">
+  <div class="fatt-modal">
+    <h3>Aggiungi consulente</h3>
+    <div class="sub" id="fatt-cons-sub"></div>
+    <label for="fatt-cons-esistente">Consulente già presente nel portale</label>
+    <select id="fatt-cons-esistente" onchange="if(this.value)document.getElementById('fatt-cons-nuovo').value=''"></select>
+    <div class="oppure">oppure</div>
+    <label for="fatt-cons-nuovo">Nuovo consulente</label>
+    <input id="fatt-cons-nuovo" type="text" placeholder="Nome e cognome" oninput="if(this.value)document.getElementById('fatt-cons-esistente').value=''" onkeydown="if(event.key==='Enter')fattConfermaConsulente()">
+    <div class="azioni">
+      <button class="btn btn-ghost" onclick="fattChiudiSceltaConsulente()">Annulla</button>
+      <button class="btn btn-primary" onclick="fattConfermaConsulente()">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script>
+(function() {
+  // ---------- Contesto del portale ----------
+  var SESS_KEY = (typeof AUTH_KEYS !== 'undefined' && AUTH_KEYS.session) ? AUTH_KEYS.session : '';
+  var PROGETTO = SESS_KEY.indexOf('ab_') === 0 ? 'Academy Beauty'
+               : SESS_KEY.indexOf('mbsm_') === 0 ? 'MBS Manager'
+               : SESS_KEY.indexOf('mbse_') === 0 ? 'MBS Emilia' : 'Portale OSM';
+
+  function sessione() {
+    try { var v = sessionStorage.getItem(SESS_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function eur(n) { return '€ ' + (Number(n) || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function isPresente(i) { return !!(i.presenza || i.presenzaG1 || i.presenzaG2); }
+  function quotaDi(i) {
+    if (typeof getQuotaEffettiva === 'function') return Number(getQuotaEffettiva(i)) || 0;
+    return parseFloat(i.quota) || 0;
+  }
+  function logoSrc() {
+    // Il logo più grande del portale (quello della home/login), non l'icona del menu
+    var best = null, bestW = 0;
+    document.querySelectorAll('img[src^="data:image"], img.logo-img').forEach(function(img) {
+      if (img.closest && img.closest('#page-fatturazione')) return;
+      var w = img.naturalWidth || 0;
+      if (w > bestW) { bestW = w; best = img; }
+    });
+    return best ? ritagliaLogo(best) : '';
+  }
+
+  // Toglie i margini trasparenti/bianchi attorno al logo, così nel documento si vede a dimensione piena
+  var _logoCache = {};
+  function ritagliaLogo(img) {
+    var src = img.getAttribute('src');
+    if (_logoCache[src]) return _logoCache[src];
+    try {
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      var cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+      var px = cx.getImageData(0, 0, w, h).data;
+      var x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+        var k = (y * w + x) * 4;
+        var vuoto = px[k + 3] < 20 || (px[k] > 245 && px[k + 1] > 245 && px[k + 2] > 245);
+        if (!vuoto) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      if (x1 < 0) return (_logoCache[src] = src);
+      var out = document.createElement('canvas'); out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+      out.getContext('2d').drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+      return (_logoCache[src] = out.toDataURL('image/png'));
+    } catch (e) { return (_logoCache[src] = src); }
+  }
+
+  // ---------- Pagina e pulsante di navigazione ----------
+  var navStat = document.getElementById('nav-statistiche');
+  if (navStat && !document.getElementById('nav-fatturazione')) {
+    var nb = document.createElement('button');
+    nb.className = 'nav-btn';
+    nb.id = 'nav-fatturazione';
+    nb.textContent = 'Fatturazione';
+    nb.setAttribute('onclick', "showPage('fatturazione')");
+    navStat.parentNode.insertBefore(nb, navStat.nextSibling);
+  }
+
+  var pageStat = document.getElementById('page-statistiche');
+  if (pageStat && !document.getElementById('page-fatturazione')) {
+    var pg = document.createElement('div');
+    pg.className = 'page';
+    pg.id = 'page-fatturazione';
+    pg.innerHTML =
+      '<div class="section-wrap">' +
+        '<div class="section-header"><div>' +
+          '<div class="section-title">&#129534; Fatturazione <span>Presenti</span></div>' +
+          '<div class="section-subtitle">Tutti i presenti del mese selezionato con consulente, partner di riferimento e quota di partecipazione</div>' +
+        '</div></div>' +
+        '<div class="fatt-toolbar">' +
+          '<label for="fatt-edizione">Mese</label>' +
+          '<select id="fatt-edizione" onchange="renderFatturazione()"></select>' +
+          '<label for="fatt-ordine" style="margin-left:8px;">Ordina per</label>' +
+          '<select id="fatt-ordine" onchange="renderFatturazione()">' +
+            '<option value="cognome">Cognome cliente</option>' +
+            '<option value="partner">Partner di riferimento</option>' +
+            '<option value="consulente">Consulente</option>' +
+          '</select>' +
+          '<div class="fatt-azioni">' +
+            '<button class="btn btn-outline" onclick="fattStampa()">&#128424; Stampa</button>' +
+            '<button class="btn btn-primary" onclick="fattScaricaPdf()">&#11015; Scarica PDF</button>' +
+            '<button class="btn btn-outline" onclick="fattScaricaExcel()">&#11015; Scarica Excel</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="fatt-doc" id="fatt-doc"></div>' +
+      '</div>';
+    pageStat.parentNode.insertBefore(pg, pageStat.nextSibling);
+  }
+
+  function aggiornaVisibilitaNav() {
+    var b = document.getElementById('nav-fatturazione');
+    if (!b) return;
+    var s = sessione();
+    var consentito = !s || s.ruolo === 'admin' || s.ruolo === 'pm';
+    b.classList.toggle('fatt-nascosto', !consentito);
+  }
+  aggiornaVisibilitaNav();
+
+  var _showPagePrima = window.showPage;
+  window.showPage = function(name) {
+    aggiornaVisibilitaNav();
+    if (name !== 'fatturazione') return _showPagePrima.apply(this, arguments);
+    var s = sessione();
+    if (s && s.ruolo !== 'admin' && s.ruolo !== 'pm') return _showPagePrima.call(this, s.ruolo === 'consulente' ? 'iscritti' : 'home');
+    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+    document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('page-fatturazione').classList.add('active');
+    document.getElementById('nav-fatturazione').classList.add('active');
+    renderFatturazione(true);
+    window.scrollTo(0, 0);
+  };
+
+  // ---------- Dati ----------
+  function righeFatturazione(edizione, ordine) {
+    var lista = (state.iscritti || []).filter(function(i) { return i.edition === edizione && isPresente(i); });
+    var righe = lista.map(function(i) {
+      return {
+        nome: ((i.nome || '') + ' ' + (i.cognome || '')).trim(),
+        cognome: (i.cognome || '').trim(),
+        azienda: i.azienda || '',
+        consulente: i.consulente || '',
+        partner: i.partner || '',
+        quota: quotaDi(i)
+      };
+    });
+    var cmp = function(a, b) { return a.localeCompare(b, 'it', { sensitivity: 'base' }); };
+    righe.sort(function(a, b) {
+      if (ordine === 'partner') return cmp(a.partner, b.partner) || cmp(a.cognome, b.cognome);
+      if (ordine === 'consulente') return cmp(a.consulente, b.consulente) || cmp(a.cognome, b.cognome);
+      return cmp(a.cognome, b.cognome) || cmp(a.nome, b.nome);
+    });
+    return righe;
+  }
+
+  function edizioneScelta() {
+    var sel = document.getElementById('fatt-edizione');
+    return sel && sel.value ? sel.value : state.edition;
+  }
+
+  function nomeFile(ext) {
+    return 'fatturazione-' + (PROGETTO + '-' + edizioneScelta()).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.' + ext;
+  }
+
+  // ---------- Render ----------
+  window.renderFatturazione = function(resetMese) {
+    var sel = document.getElementById('fatt-edizione');
+    if (!sel) return;
+    var corrente = resetMese ? state.edition : (sel.value || state.edition);
+    var eds = (state.edizioni || []).slice();
+    if (eds.indexOf(corrente) < 0 && corrente) eds.push(corrente);
+    sel.innerHTML = eds.map(function(e) { return '<option value="' + esc(e) + '"' + (e === corrente ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join('');
+
+    var ordine = document.getElementById('fatt-ordine').value;
+    var righe = righeFatturazione(corrente, ordine);
+    var totale = righe.reduce(function(s, r) { return s + r.quota; }, 0);
+    var oggi = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
+    var logo = logoSrc();
+
+    var html = '<div class="fatt-doc-head">' +
+        '<div style="display:flex;align-items:center;gap:16px;">' +
+          (logo ? '<img src="' + esc(logo) + '" alt="">' : '') +
+          '<div><div class="fatt-doc-kicker">' + esc(PROGETTO) + '</div><div class="fatt-doc-title">Riepilogo per fatturazione</div></div>' +
+        '</div>' +
+        '<div class="fatt-doc-meta">Edizione<br><b>' + esc(corrente) + '</b><br>Generato il ' + esc(oggi) + '</div>' +
+      '</div>';
+
+    if (righe.length === 0) {
+      html += '<div class="fatt-doc-vuoto">Nessun presente registrato in questa edizione.<br>Le presenze si segnano dalla sezione Iscritti.</div>';
+    } else {
+      html += '<table><thead><tr>' +
+          '<th class="idx">#</th><th>Cliente</th><th>Azienda</th><th>Consulente</th><th>Partner di riferimento</th><th class="num">Quota di partecipazione</th>' +
+        '</tr></thead><tbody>';
+      righe.forEach(function(r, k) {
+        html += '<tr><td class="idx">' + (k + 1) + '</td>' +
+          '<td class="nome">' + esc(r.nome || '—') + '</td>' +
+          '<td>' + esc(r.azienda || '—') + '</td>' +
+          '<td>' + esc(r.consulente || '—') + '</td>' +
+          '<td>' + esc(r.partner || '—') + '</td>' +
+          '<td class="num">' + eur(r.quota) + '</td></tr>';
+      });
+      html += '</tbody><tfoot><tr>' +
+          '<td colspan="5">Totale &middot; ' + righe.length + ' present' + (righe.length === 1 ? 'e' : 'i') + '</td>' +
+          '<td class="num">' + eur(totale) + '</td>' +
+        '</tr></tfoot></table>';
+    }
+    html += '<div class="fatt-doc-foot"><span>' + esc(PROGETTO) + ' &mdash; Riepilogo per fatturazione</span><span>Quote come da sezione Iscritti</span></div>';
+    document.getElementById('fatt-doc').innerHTML = html;
+  };
+
+  // ---------- Stampa ----------
+  function cssDocumento() {
+    var acc = getComputedStyle(document.documentElement).getPropertyValue('--bf-acc').trim() || '#b3468d';
+    var css = '';
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      try {
+        var rules = document.styleSheets[i].cssRules;
+        for (var j = 0; j < rules.length; j++) if (rules[j].cssText.indexOf('.fatt-doc') >= 0) css += rules[j].cssText + '\n';
+      } catch (e) {}
+    }
+    return ':root{--bf-acc:' + acc + ';}' + css +
+      '@page{size:A4;margin:12mm;} body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .fatt-doc{box-shadow:none;border-radius:0;padding:0;max-width:none;}';
+  }
+
+  window.fattStampa = function() {
+    var doc = document.getElementById('fatt-doc');
+    var fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    document.body.appendChild(fr);
+    var d = fr.contentWindow.document;
+    d.open();
+    d.write('<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>' + esc(nomeFile('pdf').replace('.pdf', '')) + '</title><style>' + cssDocumento() + '</style></head><body><div class="fatt-doc fatt-stampa">' + doc.innerHTML + '</div></body></html>');
+    d.close();
+    setTimeout(function() {
+      fr.contentWindow.focus();
+      fr.contentWindow.print();
+      setTimeout(function() { fr.remove(); }, 1500);
+    }, 400);
+  };
+
+  window.fattScaricaPdf = function() {
+    if (typeof html2pdf === 'undefined') {
+      if (typeof toast === 'function') toast('Download PDF non disponibile: si apre la stampa, scegli "Salva come PDF"');
+      return window.fattStampa();
+    }
+    var src = document.getElementById('fatt-doc');
+    var clone = src.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.classList.add('fatt-stampa');
+    clone.style.cssText = 'box-shadow:none;border-radius:0;max-width:none;width:190mm;padding:0;margin:0;';
+    var box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:-10000px;top:0;background:#fff;';
+    box.appendChild(clone);
+    document.body.appendChild(box);
+    html2pdf().set({
+      margin: [12, 10, 12, 10],
+      filename: nomeFile('pdf'),
+      image: { type: 'jpeg', quality: 0.97 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
+    }).from(clone).save().then(function() { box.remove(); }, function() { box.remove(); });
+  };
+
+  window.fattScaricaExcel = function() {
+    var righe = righeFatturazione(edizioneScelta(), document.getElementById('fatt-ordine').value);
+    var q = function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
+    var linee = [['Cliente', 'Azienda', 'Consulente', 'Partner di riferimento', 'Quota di partecipazione'].map(q).join(';')];
+    var tot = 0;
+    righe.forEach(function(r) {
+      tot += r.quota;
+      linee.push([r.nome, r.azienda, r.consulente, r.partner, r.quota.toFixed(2).replace('.', ',')].map(q).join(';'));
+    });
+    linee.push(['Totale', '', '', '', tot.toFixed(2).replace('.', ',')].map(q).join(';'));
+    var blob = new Blob(['﻿' + linee.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nomeFile('csv');
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  };
+
+  // ---------- Consulente su più partner: scelta da elenco ----------
+  var _consPi = null;
+  var SEGNAPOSTO = 'nuovo consulente';
+
+  function consulentiEsistenti() {
+    var mappa = {};
+    (state.partners || []).forEach(function(p) {
+      (p.consulenti || []).forEach(function(c) {
+        var n = (c.name || '').trim();
+        if (!n || n.toLowerCase() === SEGNAPOSTO) return;
+        var k = n.toLowerCase();
+        if (!mappa[k]) mappa[k] = { nome: n, partner: [] };
+        if (mappa[k].partner.indexOf(p.name) < 0) mappa[k].partner.push(p.name);
+      });
+    });
+    return Object.keys(mappa).map(function(k) { return mappa[k]; })
+      .sort(function(a, b) { return a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }); });
+  }
+
+  window.addConsulente = function(pi) {
+    _consPi = pi;
+    var partner = state.partners[pi];
+    var giaQui = (partner.consulenti || []).map(function(c) { return (c.name || '').trim().toLowerCase(); });
+    var elenco = consulentiEsistenti().filter(function(c) { return giaQui.indexOf(c.nome.toLowerCase()) < 0; });
+    var sel = document.getElementById('fatt-cons-esistente');
+    sel.innerHTML = '<option value="">' + (elenco.length ? '— Scegli dall\'elenco —' : '— Nessun altro consulente disponibile —') + '</option>' +
+      elenco.map(function(c) { return '<option value="' + esc(c.nome) + '">' + esc(c.nome) + '  (già con: ' + esc(c.partner.join(', ')) + ')</option>'; }).join('');
+    document.getElementById('fatt-cons-nuovo').value = '';
+    document.getElementById('fatt-cons-sub').innerHTML = 'Partner: <strong>' + esc(partner.name) + '</strong>';
+    document.getElementById('fatt-cons-overlay').classList.add('show');
+  };
+
+  window.fattChiudiSceltaConsulente = function() {
+    document.getElementById('fatt-cons-overlay').classList.remove('show');
+    _consPi = null;
+  };
+
+  window.fattConfermaConsulente = function() {
+    if (_consPi === null) return;
+    var nome = (document.getElementById('fatt-cons-esistente').value || document.getElementById('fatt-cons-nuovo').value || '').trim();
+    if (!nome) { if (typeof toast === 'function') toast('Scegli un consulente o scrivi il nome di uno nuovo'); return; }
+    var partner = state.partners[_consPi];
+    var dup = (partner.consulenti || []).some(function(c) { return (c.name || '').trim().toLowerCase() === nome.toLowerCase(); });
+    if (dup) { if (typeof toast === 'function') toast(nome + ' è già sotto questo partner'); return; }
+    partner.consulenti.push({ id: uid(), name: nome, open: true, aziende: [] });
+    partner.open = true;
+    fattChiudiSceltaConsulente();
+    save();
+    renderPartners();
+    if (typeof toast === 'function') toast('Consulente aggiunto: ' + nome);
+  };
+
+  // Rinomina: se lo stesso consulente è anche sotto altri partner, propone di rinominarlo ovunque
+  window.updateConsulenteName = function(pi, ci, val) {
+    var cons = state.partners[pi].consulenti[ci];
+    var vecchio = (cons.name || '').trim();
+    var nuovo = (val || '').trim();
+    cons.name = val;
+    var altri = [];
+    if (vecchio && nuovo && vecchio.toLowerCase() !== nuovo.toLowerCase() && vecchio.toLowerCase() !== SEGNAPOSTO) {
+      state.partners.forEach(function(p, pIdx) {
+        (p.consulenti || []).forEach(function(c, cIdx) {
+          if ((pIdx !== pi || cIdx !== ci) && (c.name || '').trim().toLowerCase() === vecchio.toLowerCase()) altri.push({ c: c, partner: p.name });
+        });
+      });
+    }
+    if (altri.length && confirm('"' + vecchio + '" è presente anche sotto: ' + altri.map(function(a) { return a.partner; }).join(', ') + '.\n\nVuoi rinominarlo in "' + nuovo + '" anche lì?')) {
+      altri.forEach(function(a) { a.c.name = val; });
+      save();
+      renderPartners();
+      return;
+    }
+    save();
+  };
+})();
+</script>
+<!-- ===== FINE MODULO COMUNE FATTURAZIONE ===== -->
+
 </body>
 </html>
 
